@@ -3,7 +3,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { UserProfile, JobMatch, AnalysisResult, OptimizationDiagnosis, OptimizationStep } from "../types";
 
 const getAI = () => {
-  const apiKey = VITE_GEMINI_API_KEY;
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   console.log("[GeminiService] Checking API Key presence:", !!apiKey);
   if (!apiKey) {
     throw new Error("API Key is missing in environment variables.");
