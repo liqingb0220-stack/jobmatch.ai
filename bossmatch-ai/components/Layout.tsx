@@ -139,7 +139,7 @@ export const Layout: React.FC<LayoutProps> = ({
             <a href="mailto:liqingb0220@gmail.com" className="text-slate-400 hover:text-blue-500 transition-colors font-medium">联系开发者 / 反馈建议</a>
           </div>
           <p className="text-slate-400 text-xs font-medium uppercase tracking-widest text-center">
-            © 2024 BossMatch AI · 开发者: <span className="text-slate-600 font-bold">liqingb0220@gmail.com</span>
+            © 2026 BossMatch AI · 开发者: <span className="text-slate-600 font-bold">liqingb0220@gmail.com</span>
           </p>
           <p className="text-[10px] text-slate-300 mt-4 uppercase tracking-[0.2em]">
             Experiential Trial Version · No Persistent Cloud Storage
