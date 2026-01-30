@@ -1,0 +1,5 @@
+{
+  "name": "Copy of BossMatch AI - 职场智能猎手",
+  "description": "基于 Gemini 3.0 的 AI 智能求职助手，深度分析简历与职场期待，全网（BOSS直聘等）实时检索并精准匹配最优岗位。",
+  "requestFramePermissions": []
+}
