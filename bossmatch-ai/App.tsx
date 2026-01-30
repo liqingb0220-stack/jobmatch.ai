@@ -119,6 +119,7 @@ const App: React.FC = () => {
       setProfile(prev => ({ ...prev, resumeText: fullText }));
       setFileName(file.name);
     } catch (err) {
+      console.error('PDF 解析失败:', err);
       setError('PDF 解析失败');
     } finally {
       setIsParsingPdf(false);
@@ -126,7 +127,10 @@ const App: React.FC = () => {
   };
 
   const handleStartSearch = async () => {
+    console.log("[App] handleStartSearch triggered");
+    
     if (!profile.resumeText || !profile.expectations) {
+      console.warn("[App] Missing resumeText or expectations");
       setError('请输入简历内容与期望以开始匹配');
       return;
     }
@@ -140,13 +144,17 @@ const App: React.FC = () => {
     ]);
 
     try {
+      console.log("[App] Phase 1: analyzeProfile starting...");
       await new Promise(r => setTimeout(r, 600));
       const analysisData = await analyzeProfile(profile);
+      console.log("[App] Phase 1: analyzeProfile success:", analysisData);
       setAnalysis(analysisData);
       
       setMatchSteps(prev => prev.map(s => s.id === '1' ? {...s, status: 'completed', subText: `✔ 已读取简历（识别到 ${analysisData.keywords.length} 项核心技能）`} : s.id === '2' ? {...s, status: 'loading', subText: '正在通过 Google Search 核实平台实时存量岗位...'} : s));
       
+      console.log("[App] Phase 2: searchAndMatchJobs starting...");
       const matchedJobs = await searchAndMatchJobs(profile, analysisData);
+      console.log("[App] Phase 2: searchAndMatchJobs success, found:", matchedJobs.length, "jobs");
       
       setMatchSteps(prev => prev.map(s => s.id === '2' ? {...s, status: 'completed', subText: `✔ 已匹配全网岗位（找到 ${matchedJobs.length} 个实时在招职位）`} : s.id === '3' ? {...s, status: 'loading', subText: '🔍 正在对比经历与岗位需求，寻找最佳契合点...'} : s));
       
@@ -156,8 +164,9 @@ const App: React.FC = () => {
       setJobs(matchedJobs);
       setSeenJobKeys(matchedJobs.map(j => `${j.company}-${j.title}`));
       setStep('results');
-    } catch (err) {
-      setError('匹配过程出现异常，请检查网络或简化期待条件');
+    } catch (err: any) {
+      console.error("[App] handleStartSearch CRITICAL ERROR:", err);
+      setError(`匹配过程出现异常: ${err?.message || '未知错误'}`);
     } finally {
       setLoading(false);
     }
@@ -168,6 +177,7 @@ const App: React.FC = () => {
     setRefreshing(true);
     setError(null);
     try {
+      console.log("[App] Refreshing jobs...");
       const newJobs = await searchAndMatchJobs(profile, analysis, seenJobKeys);
       if (newJobs.length > 0) {
         setJobs(newJobs);
@@ -177,6 +187,7 @@ const App: React.FC = () => {
         setTimeout(() => setError(null), 3000);
       }
     } catch (err) {
+      console.error("[App] Refresh failed:", err);
       setError('刷新失败，请稍后重试');
     } finally {
       setRefreshing(false);
