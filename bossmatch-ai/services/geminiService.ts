@@ -2,9 +2,18 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { UserProfile, JobMatch, AnalysisResult, OptimizationDiagnosis, OptimizationStep } from "../types";
 
+const getAI = () => {
+  const apiKey = VITE_GEMINI_API_KEY;
+  console.log("[GeminiService] Checking API Key presence:", !!apiKey);
+  if (!apiKey) {
+    throw new Error("API Key is missing in environment variables.");
+  }
+  return new GoogleGenAI({ apiKey });
+};
+
 export const analyzeProfile = async (profile: UserProfile): Promise<AnalysisResult> => {
-  // Move initialization inside the function to avoid top-level load errors
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  console.log("[GeminiService] analyzeProfile called");
+  const ai = getAI();
   
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
@@ -27,11 +36,13 @@ export const analyzeProfile = async (profile: UserProfile): Promise<AnalysisResu
     },
   });
 
+  console.log("[GeminiService] analyzeProfile response received");
   return JSON.parse(response.text || '{}');
 };
 
 export const searchAndMatchJobs = async (profile: UserProfile, analysis: AnalysisResult, excludeTitles: string[] = []): Promise<JobMatch[]> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  console.log("[GeminiService] searchAndMatchJobs called");
+  const ai = getAI();
   const excludePart = excludeTitles.length > 0 ? `排除：${excludeTitles.join('、')}` : "";
   
   const prompt = `
@@ -71,19 +82,21 @@ export const searchAndMatchJobs = async (profile: UserProfile, analysis: Analysi
     },
   });
 
+  console.log("[GeminiService] searchAndMatchJobs response received");
   try {
     const rawText = response.text || '[]';
     const cleanedText = rawText.replace(/```json|```/g, '').trim();
     const results: JobMatch[] = JSON.parse(cleanedText);
     return results.filter(job => job.url && job.url.startsWith('http'));
   } catch (error) {
-    console.error("Failed to parse jobs:", error);
+    console.error("[GeminiService] Failed to parse jobs:", error);
     return [];
   }
 };
 
 export const getOptimizationDiagnosis = async (resumeText: string, job: JobMatch): Promise<OptimizationDiagnosis> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  console.log("[GeminiService] getOptimizationDiagnosis called");
+  const ai = getAI();
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: `对比岗位 "${job.title} @ ${job.company}" 的需求与以下简历。
@@ -105,11 +118,13 @@ JD摘要：${job.jdSummary}
       },
     },
   });
+  console.log("[GeminiService] getOptimizationDiagnosis response received");
   return JSON.parse(response.text || '{}');
 };
 
 export const getDeepOptimizationSteps = async (resumeText: string, job: JobMatch): Promise<OptimizationStep[]> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  console.log("[GeminiService] getDeepOptimizationSteps called");
+  const ai = getAI();
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: `进行深度语义优化（非关键词堆砌）。针对 "${job.title}"，从以下简历中挑出 2-3 个最需要重写的段落。
@@ -132,6 +147,6 @@ export const getDeepOptimizationSteps = async (resumeText: string, job: JobMatch
       },
     },
   });
+  console.log("[GeminiService] getDeepOptimizationSteps response received");
   return JSON.parse(response.text || '[]');
 }
-
