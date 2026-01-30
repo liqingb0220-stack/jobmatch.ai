@@ -1,9 +1,11 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { UserProfile, JobMatch, AnalysisResult, OptimizationDiagnosis, OptimizationStep } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
-
 export const analyzeProfile = async (profile: UserProfile): Promise<AnalysisResult> => {
+  // Move initialization inside the function to avoid top-level load errors
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: `你是一名资深的职业顾问。请深度分析以下求职者的简历与期望，输出结构化分析报告。
@@ -29,6 +31,7 @@ export const analyzeProfile = async (profile: UserProfile): Promise<AnalysisResu
 };
 
 export const searchAndMatchJobs = async (profile: UserProfile, analysis: AnalysisResult, excludeTitles: string[] = []): Promise<JobMatch[]> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
   const excludePart = excludeTitles.length > 0 ? `排除：${excludeTitles.join('、')}` : "";
   
   const prompt = `
@@ -80,6 +83,7 @@ export const searchAndMatchJobs = async (profile: UserProfile, analysis: Analysi
 };
 
 export const getOptimizationDiagnosis = async (resumeText: string, job: JobMatch): Promise<OptimizationDiagnosis> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: `对比岗位 "${job.title} @ ${job.company}" 的需求与以下简历。
@@ -105,6 +109,7 @@ JD摘要：${job.jdSummary}
 };
 
 export const getDeepOptimizationSteps = async (resumeText: string, job: JobMatch): Promise<OptimizationStep[]> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: `进行深度语义优化（非关键词堆砌）。针对 "${job.title}"，从以下简历中挑出 2-3 个最需要重写的段落。
@@ -129,3 +134,4 @@ export const getDeepOptimizationSteps = async (resumeText: string, job: JobMatch
   });
   return JSON.parse(response.text || '[]');
 }
+
