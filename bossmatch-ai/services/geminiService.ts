@@ -2,28 +2,23 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { UserProfile, JobMatch, AnalysisResult, OptimizationDiagnosis, OptimizationStep } from "../types";
 
-/**
- * 内部获取 AI 实例的方法
- * 兼容用户指定的 VITE_GEMINI_API_KEY 及系统预设的 process.env.API_KEY
- */
 const getAI = () => {
-  // 获取 API Key
-  let apiKey = (process.env as any).VITE_GEMINI_API_KEY || process.env.API_KEY;
-  
-  // 字符串清洗与预校验
+  // ✅ 核心修复：Vite 环境必须用 import.meta.env 读取环境变量
+  let apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
+  // 保留你原有的字符串清洗与预校验逻辑（无需修改）
   if (typeof apiKey === 'string') {
     apiKey = apiKey.trim();
   }
 
-  // 拦截常见的无效占位符
+  // 保留原有无效值拦截逻辑（覆盖所有空/占位符情况）
   const isInvalid = !apiKey || 
                     apiKey === "undefined" || 
                     apiKey === "null" || 
-                    apiKey === "" || 
-                    apiKey === "process.env.API_KEY";
+                    apiKey === "";
 
   if (isInvalid) {
-    console.error("[GeminiService] API Key 状态异常:", { apiKey });
+    console.error("[GeminiService] API Key 状态异常: 未读取到有效Key", { apiKey });
     throw new Error("API_KEY_MISSING");
   }
   
