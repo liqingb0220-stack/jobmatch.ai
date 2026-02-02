@@ -7,7 +7,6 @@ import { AnalysisView } from './components/AnalysisView';
 import { JobCard } from './components/JobCard';
 import { OptimizationModal } from './components/OptimizationModal';
 import { JobDetailsModal } from './components/JobDetailsModal';
-import { ProgressBar } from './components/ProgressBar';
 import { ProcessSteps, StepItem } from './components/ProcessSteps';
 import { AuthModal } from './components/AuthModal';
 import { HistoryModal } from './components/HistoryModal';
@@ -58,8 +57,28 @@ const App: React.FC = () => {
     localStorage.setItem('bossmatch_history', JSON.stringify(history));
   }, [history]);
 
+  // User-friendly error mapping
+  const getFriendlyErrorMessage = (err: any): string => {
+    const message = err?.message || "";
+    if (message.includes("AUTH_ERROR") || message.includes("403")) {
+      return "AI 服务授权失败。请检查 API Key 配置或刷新页面重试。";
+    }
+    if (message.includes("429")) {
+      return "AI 忙碌中（请求过于频繁）。请稍等 1 分钟后再试，或者减少简历描述的长度。";
+    }
+    if (message.includes("PARSE_ERROR")) {
+      return "匹配结果解析失败。这通常是由于网络波动导致的，请尝试重试。";
+    }
+    if (message.includes("fetch") || message.includes("network")) {
+      return "网络连接异常。请检查您的互联网连接或尝试更换网络环境。";
+    }
+    if (message.includes("safety") || message.includes("blocked")) {
+      return "内容未能通过 AI 安全审核。请调整简历或期望描述，避免包含敏感信息。";
+    }
+    return "AI 暂时无法响应，请稍后重试。您可以尝试精简简历内容以提高成功率。";
+  };
+
   const handleLogin = (provider: 'google' | 'apple') => {
-    // Simulated Social Login
     const mockUser: User = {
       id: Math.random().toString(36).substr(2, 9),
       name: provider === 'google' ? 'Google 体验用户' : 'Apple 体验用户',
@@ -92,7 +111,7 @@ const App: React.FC = () => {
       jobs: [...jobs]
     };
     setHistory(prev => [newItem, ...prev]);
-    alert('分析已保存至本地（当前版本为体验版，数据清理或更换设备后将失效）');
+    alert('分析已保存至本地');
   };
 
   const handleRestoreHistory = (item: HistoryItem) => {
@@ -120,7 +139,7 @@ const App: React.FC = () => {
       setFileName(file.name);
     } catch (err) {
       console.error('PDF 解析失败:', err);
-      setError('PDF 解析失败');
+      setError('PDF 解析失败，请检查文件格式');
     } finally {
       setIsParsingPdf(false);
     }
@@ -130,7 +149,6 @@ const App: React.FC = () => {
     console.log("[App] handleStartSearch triggered");
     
     if (!profile.resumeText || !profile.expectations) {
-      console.warn("[App] Missing resumeText or expectations");
       setError('请输入简历内容与期望以开始匹配');
       return;
     }
@@ -145,28 +163,25 @@ const App: React.FC = () => {
 
     try {
       console.log("[App] Phase 1: analyzeProfile starting...");
-      await new Promise(r => setTimeout(r, 600));
       const analysisData = await analyzeProfile(profile);
-      console.log("[App] Phase 1: analyzeProfile success:", analysisData);
       setAnalysis(analysisData);
       
-      setMatchSteps(prev => prev.map(s => s.id === '1' ? {...s, status: 'completed', subText: `✔ 已读取简历（识别到 ${analysisData.keywords.length} 项核心技能）`} : s.id === '2' ? {...s, status: 'loading', subText: '正在通过 Google Search 核实平台实时存量岗位...'} : s));
+      setMatchSteps(prev => prev.map(s => s.id === '1' ? {...s, status: 'completed', subText: `✔ 已识别核心技能`} : s.id === '2' ? {...s, status: 'loading', subText: '正在检索全网 10 个最优在招岗位...'} : s));
       
       console.log("[App] Phase 2: searchAndMatchJobs starting...");
       const matchedJobs = await searchAndMatchJobs(profile, analysisData);
-      console.log("[App] Phase 2: searchAndMatchJobs success, found:", matchedJobs.length, "jobs");
       
-      setMatchSteps(prev => prev.map(s => s.id === '2' ? {...s, status: 'completed', subText: `✔ 已匹配全网岗位（找到 ${matchedJobs.length} 个实时在招职位）`} : s.id === '3' ? {...s, status: 'loading', subText: '🔍 正在对比经历与岗位需求，寻找最佳契合点...'} : s));
+      setMatchSteps(prev => prev.map(s => s.id === '2' ? {...s, status: 'completed', subText: `✔ 已锁定 10 个实时在招职位`} : s.id === '3' ? {...s, status: 'loading', subText: '🔍 正在进行深度契合度对标...'} : s));
       
-      await new Promise(r => setTimeout(r, 1200));
-      setMatchSteps(prev => prev.map(s => s.id === '3' ? {...s, status: 'completed', subText: '✔ 匹配分析完成，正在生成最优决策列表'} : s));
+      await new Promise(r => setTimeout(r, 800));
+      setMatchSteps(prev => prev.map(s => s.id === '3' ? {...s, status: 'completed', subText: '✔ 匹配分析完成'} : s));
       
       setJobs(matchedJobs);
       setSeenJobKeys(matchedJobs.map(j => `${j.company}-${j.title}`));
       setStep('results');
     } catch (err: any) {
-      console.error("[App] handleStartSearch CRITICAL ERROR:", err);
-      setError(`匹配过程出现异常: ${err?.message || '未知错误'}`);
+      console.error("[App] handleStartSearch error:", err);
+      setError(getFriendlyErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -177,18 +192,17 @@ const App: React.FC = () => {
     setRefreshing(true);
     setError(null);
     try {
-      console.log("[App] Refreshing jobs...");
       const newJobs = await searchAndMatchJobs(profile, analysis, seenJobKeys);
       if (newJobs.length > 0) {
         setJobs(newJobs);
         setSeenJobKeys(prev => [...prev, ...newJobs.map(j => `${j.company}-${j.title}`)]);
       } else {
-        setError('暂无更多符合当前简历肖像的岗位');
+        setError('暂无更多符合条件的岗位，您可以尝试修改期望条件');
         setTimeout(() => setError(null), 3000);
       }
     } catch (err) {
       console.error("[App] Refresh failed:", err);
-      setError('刷新失败，请稍后重试');
+      setError(getFriendlyErrorMessage(err));
     } finally {
       setRefreshing(false);
     }
@@ -201,12 +215,7 @@ const App: React.FC = () => {
     setSeenJobKeys([]);
     setFileName(null);
     setProfile({ resumeText: '', expectations: '' });
-  };
-
-  const handleAvatarUpload = (url: string) => {
-    if (user) {
-      setUser({ ...user, avatar: url });
-    }
+    setError(null);
   };
 
   return (
@@ -215,17 +224,9 @@ const App: React.FC = () => {
       onLogout={handleLogout} 
       onLoginClick={() => setShowAuthModal(true)} 
       onShowHistory={() => { if(!user) setShowAuthModal(true); else setShowHistoryModal(true); }}
-      onAvatarUpload={handleAvatarUpload}
+      onAvatarUpload={(url) => user && setUser({ ...user, avatar: url })}
     >
       <div className="max-w-7xl mx-auto px-4 py-8 sm:py-12">
-        {/* Trial Version Banner */}
-        <div className="mb-8 glass-panel rounded-2xl p-4 border-blue-100 flex items-center justify-center space-x-3 text-blue-600 animate-fade-in">
-          <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          <p className="text-xs font-bold tracking-wide">
-            当前版本为体验版，暂不保存历史记录。刷新页面或重新进入后，之前的分析结果将不会永久保留。
-          </p>
-        </div>
-
         {step === 'input' ? (
           <div className="max-w-3xl mx-auto space-y-12 animate-fade-in">
             <div className="text-center space-y-6">
@@ -234,7 +235,7 @@ const App: React.FC = () => {
               </h2>
               <p className="text-lg sm:text-xl text-slate-500 max-w-2xl mx-auto font-medium leading-relaxed">
                 上传简历开启 AI 智能筛选。我们将深入分析你的职业优势，
-                并在全网检索最匹配的【实时在招】优质机会。
+                并在全网检索最匹配的优质机会。
               </p>
             </div>
 
@@ -249,14 +250,20 @@ const App: React.FC = () => {
                 >
                   <input type="file" ref={fileInputRef} onChange={(e) => { const f = e.target.files?.[0]; if (f) extractTextFromPdf(f); }} accept=".pdf" className="hidden" />
                   {isParsingPdf ? (
-                    <div className="flex flex-col items-center">
+                    <div className="flex flex-col items-center animate-pulse">
                       <div className="w-10 h-10 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mb-3"></div>
                       <span className="text-sm text-slate-500 font-semibold tracking-wide">正在解析履历详情...</span>
                     </div>
                   ) : fileName ? (
-                    <div className="text-center animate-fade-in text-blue-700 font-bold text-lg">{fileName}</div>
+                    <div className="text-center animate-fade-in">
+                      <p className="text-blue-700 font-bold text-lg">{fileName}</p>
+                      <p className="text-xs text-slate-400 mt-1 uppercase font-black">点击重新上传</p>
+                    </div>
                   ) : (
-                    <p className="text-slate-600 font-bold text-lg">点击上传 PDF 简历</p>
+                    <div className="text-center">
+                      <p className="text-slate-600 font-bold text-lg">点击上传 PDF 简历</p>
+                      <p className="text-xs text-slate-400 mt-1 uppercase font-black">AI 将自动识别您的核心经历</p>
+                    </div>
                   )}
                 </div>
               </div>
@@ -278,9 +285,12 @@ const App: React.FC = () => {
               )}
 
               {error && (
-                <div className="bg-red-50/80 text-red-600 p-4 rounded-2xl text-sm font-semibold border border-red-100 animate-fade-in flex items-center justify-center shadow-sm">
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                  {error}
+                <div className="bg-red-50/80 text-red-600 p-6 rounded-2xl text-sm font-semibold border border-red-100 animate-fade-in flex flex-col items-center justify-center shadow-sm">
+                  <div className="flex items-center mb-2">
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <span>服务暂不可用</span>
+                  </div>
+                  <p className="text-center text-slate-600 font-medium px-4">{error}</p>
                 </div>
               )}
 
@@ -289,7 +299,7 @@ const App: React.FC = () => {
                 disabled={loading || isParsingPdf} 
                 className="w-full py-6 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-[2rem] font-extrabold text-xl shadow-xl hover:shadow-2xl hover:translate-y-[-4px] transition-all disabled:opacity-70 flex items-center justify-center tracking-tight"
               >
-                {loading ? "正在实时检索..." : "立即开启智能筛选"}
+                {loading ? "正在智能检索中..." : "立即开启智能筛选"}
               </button>
             </div>
           </div>
@@ -302,10 +312,10 @@ const App: React.FC = () => {
                   className="text-blue-600 flex items-center text-xs font-extrabold uppercase tracking-widest hover:translate-x-[-4px] transition-transform mb-4"
                 >
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-                  返回重新配置档案
+                  重新配置档案
                 </button>
-                <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-800 tracking-tight">为您精选的匹配机会</h2>
-                <p className="text-slate-500 mt-2 font-medium">基于您的履历肖像，AI 锁定了以下在招优质岗位</p>
+                <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-800 tracking-tight">为您精选的 10 个匹配机会</h2>
+                <p className="text-slate-500 mt-2 font-medium">AI 已为您分析全网实时动态，并锁定以下优质岗位</p>
               </div>
               <div className="flex items-center space-x-4">
                 <button 
@@ -327,14 +337,19 @@ const App: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {jobs.map((job, index) => (
-                <div key={index} className="glass-panel rounded-[2rem] border-0 hover:shadow-2xl hover:translate-y-[-8px] transition-all overflow-hidden">
+                <div key={index} className="glass-panel rounded-[2rem] border-0 hover:shadow-2xl hover:translate-y-[-8px] transition-all overflow-hidden flex flex-col h-full">
                   <JobCard job={job} onOptimize={() => setSelectedJobForOptimize(job)} onViewDetails={() => setSelectedJobForDetails(job)} />
                 </div>
               ))}
             </div>
 
-            {/* Save Button */}
-            <div className="flex flex-col items-center pt-10 space-y-4">
+            <div className="flex flex-col items-center pt-10 space-y-6">
+              {error && (
+                 <div className="bg-red-50 text-red-600 p-4 rounded-xl text-xs font-bold border border-red-100 animate-bounce">
+                   {error}
+                 </div>
+              )}
+              
               <button 
                 onClick={handleSaveAnalysis}
                 className="glass-panel px-12 py-5 rounded-[2rem] text-blue-600 font-extrabold flex items-center space-x-3 hover:bg-blue-600 hover:text-white hover:-translate-y-2 transition-all shadow-xl group"
@@ -342,9 +357,12 @@ const App: React.FC = () => {
                 <svg className="w-6 h-6 group-hover:scale-125 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
                 <span>保存此次分析结果</span>
               </button>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center max-w-xs">
-                * 体验版数据仅保存于浏览器缓存，清理后将无法恢复
-              </p>
+
+              <div className="max-w-2xl w-full text-center space-y-2 pt-8 border-t border-slate-200/50">
+                <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed px-6">
+                  * 本平台匹配结果由 AI 深度模型基于公开招聘数据生成，仅供职业选择参考，不代表招聘方实时或真实的录用承诺。具体岗位详情及开放状态请以原招聘平台及企业官方信息为准。
+                </p>
+              </div>
             </div>
 
             <JobDetailsModal 
