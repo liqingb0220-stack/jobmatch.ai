@@ -2,11 +2,15 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { UserProfile, JobMatch, AnalysisResult, OptimizationDiagnosis, OptimizationStep } from "../types";
 
+/**
+ * Creates a new instance of GoogleGenAI using the environment's API Key.
+ * We initialize inside functions to prevent top-level load errors if the key is momentarily unavailable.
+ */
 const getAI = () => {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  console.log("[GeminiService] Checking API Key presence:", !!apiKey);
+  const apiKey = process.env.API_KEY;
   if (!apiKey) {
-    throw new Error("API Key is missing in environment variables.");
+    // This will be caught by the App component and mapped to a user-friendly message
+    throw new Error("AUTH_ERROR");
   }
   return new GoogleGenAI({ apiKey });
 };
@@ -19,8 +23,8 @@ export const analyzeProfile = async (profile: UserProfile): Promise<AnalysisResu
     model: 'gemini-3-flash-preview',
     contents: `你是一名资深的职业顾问。请深度分析以下求职者的简历与期望，输出结构化分析报告。
 请在 summary 中包含一个类似“(已识别 XX 条核心经历)”的说明。
-简历：${profile.resumeText}
-期望：${profile.expectations}`,
+简历内容：${profile.resumeText}
+职业期望：${profile.expectations}`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -43,15 +47,19 @@ export const analyzeProfile = async (profile: UserProfile): Promise<AnalysisResu
 export const searchAndMatchJobs = async (profile: UserProfile, analysis: AnalysisResult, excludeTitles: string[] = []): Promise<JobMatch[]> => {
   console.log("[GeminiService] searchAndMatchJobs called");
   const ai = getAI();
-  const excludePart = excludeTitles.length > 0 ? `排除：${excludeTitles.join('、')}` : "";
+  const excludePart = excludeTitles.length > 0 ? `请务必避开以下已搜索过的职位：${excludeTitles.join('、')}` : "";
   
   const prompt = `
-    作为猎头专家，利用 Google Search 确认 BOSS直聘 或官网在招岗位。
-    背景：${analysis.summary}
-    期望：${profile.expectations}
+    作为资深猎头专家，请利用 Google Search 检索并在招岗位中筛选出最适合该用户的机会。
+    用户背景摘要：${analysis.summary}
+    用户职业期望：${profile.expectations}
     ${excludePart}
-    要求：存活性验证，真实链接（官网或招聘平台首页），中文。
-    在返回的 reason 中，请包含一句“已找到 X 条高度相关经历”的描述。
+    
+    要求：
+    1. 必须返回 10 个最匹配的岗位。
+    2. 岗位必须是真实存在的，提供其官网、BOSS直聘或相应招聘平台的检索入口。
+    3. 在 reason 字段中，请用一句话说明“已找到 X 条高度相关经历”来支撑推荐理由。
+    4. 使用中文回答。
   `;
 
   const response = await ai.models.generateContent({
@@ -85,25 +93,22 @@ export const searchAndMatchJobs = async (profile: UserProfile, analysis: Analysi
   console.log("[GeminiService] searchAndMatchJobs response received");
   try {
     const rawText = response.text || '[]';
-    const cleanedText = rawText.replace(/```json|```/g, '').trim();
-    const results: JobMatch[] = JSON.parse(cleanedText);
-    return results.filter(job => job.url && job.url.startsWith('http'));
+    const results: JobMatch[] = JSON.parse(rawText);
+    return results.filter(job => job.url && job.url.startsWith('http')).slice(0, 10);
   } catch (error) {
-    console.error("[GeminiService] Failed to parse jobs:", error);
-    return [];
+    console.error("[GeminiService] JSON parse error:", error);
+    throw new Error("PARSE_ERROR");
   }
 };
 
 export const getOptimizationDiagnosis = async (resumeText: string, job: JobMatch): Promise<OptimizationDiagnosis> => {
-  console.log("[GeminiService] getOptimizationDiagnosis called");
   const ai = getAI();
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: `对比岗位 "${job.title} @ ${job.company}" 的需求与以下简历。
 JD摘要：${job.jdSummary}
-简历：${resumeText.substring(0, 2000)}
-请给出诊断：匹配度概览、核心短板、快速改进建议。
-要求：在 matchOverview 中明确说明“已解析 JD（X 项核心要求）”。`,
+简历文本：${resumeText.substring(0, 3000)}
+请提供诊断报告：匹配度概览（需包含“已解析 JD（X 项核心要求）”）、匹配得分、核心短板、快速改进建议。`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -118,18 +123,16 @@ JD摘要：${job.jdSummary}
       },
     },
   });
-  console.log("[GeminiService] getOptimizationDiagnosis response received");
   return JSON.parse(response.text || '{}');
 };
 
 export const getDeepOptimizationSteps = async (resumeText: string, job: JobMatch): Promise<OptimizationStep[]> => {
-  console.log("[GeminiService] getDeepOptimizationSteps called");
   const ai = getAI();
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `进行深度语义优化（非关键词堆砌）。针对 "${job.title}"，从以下简历中挑出 2-3 个最需要重写的段落。
-简历内容：${resumeText.substring(0, 2500)}
-要求：提供原句、优化后的句子及深度优化逻辑。`,
+    contents: `进行简历深度语义优化。目标职位："${job.title} @ ${job.company}"。
+简历：${resumeText.substring(0, 3000)}
+请选出 3 个关键段落进行重构。`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -147,6 +150,6 @@ export const getDeepOptimizationSteps = async (resumeText: string, job: JobMatch
       },
     },
   });
-  console.log("[GeminiService] getDeepOptimizationSteps response received");
   return JSON.parse(response.text || '[]');
-}
+};
+
