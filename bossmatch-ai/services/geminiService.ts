@@ -8,11 +8,11 @@ import { UserProfile, JobMatch, AnalysisResult, OptimizationDiagnosis, Optimizat
  */
 const getAI = () => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) {
-    // This will be caught by the App component and mapped to a user-friendly message
+  if (!apiKey || apiKey.includes("YOUR_API_KEY")) { 
+    console.error("[GeminiService] API 不可用或遗失");
     throw new Error("AUTH_ERROR");
   }
-  return new GoogleGenAI({ apiKey });
+  return new GoogleGenAI(apiKey); 
 };
 
 export const analyzeProfile = async (profile: UserProfile): Promise<AnalysisResult> => {
