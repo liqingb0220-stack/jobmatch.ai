@@ -7,7 +7,7 @@ import { UserProfile, JobMatch, AnalysisResult, OptimizationDiagnosis, Optimizat
  * We initialize inside functions to prevent top-level load errors if the key is momentarily unavailable.
  */
 const getAI = () => {
-  const apiKey = process.env.API_KEY;
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   if (!apiKey) {
     // This will be caught by the App component and mapped to a user-friendly message
     throw new Error("AUTH_ERROR");
