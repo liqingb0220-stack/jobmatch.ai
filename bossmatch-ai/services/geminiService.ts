@@ -4,14 +4,26 @@ import { UserProfile, JobMatch, AnalysisResult, OptimizationDiagnosis, Optimizat
 
 /**
  * 内部获取 AI 实例的方法
- * 适配用户环境中的 VITE_GEMINI_API_KEY，并增加前置校验防止 SDK 抛出底层错误
+ * 兼容用户指定的 VITE_GEMINI_API_KEY 及系统预设的 process.env.API_KEY
  */
 const getAI = () => {
-  // 优先尝试读取 VITE_ 前缀的变量
-  const apiKey = (process.env as any).VITE_GEMINI_API_KEY || process.env.API_KEY;
+  // 获取 API Key
+  let apiKey = (process.env as any).VITE_GEMINI_API_KEY || process.env.API_KEY;
   
-  if (!apiKey || apiKey === "undefined" || apiKey === "process.env.API_KEY") {
-    console.error("[GeminiService] API Key 缺失或未定义");
+  // 字符串清洗与预校验
+  if (typeof apiKey === 'string') {
+    apiKey = apiKey.trim();
+  }
+
+  // 拦截常见的无效占位符
+  const isInvalid = !apiKey || 
+                    apiKey === "undefined" || 
+                    apiKey === "null" || 
+                    apiKey === "" || 
+                    apiKey === "process.env.API_KEY";
+
+  if (isInvalid) {
+    console.error("[GeminiService] API Key 状态异常:", { apiKey });
     throw new Error("API_KEY_MISSING");
   }
   
@@ -63,7 +75,7 @@ export const searchAndMatchJobs = async (profile: UserProfile, analysis: Analysi
       
       要求：
       1. 必须一次性返回正好 10 个最匹配的岗位。
-      2. 每个岗位必须包含真实链接。
+      2. 每个岗位必须包含真实链接（招聘平台、公司官网等）。
       3. 在 reason 字段中，必须包含“已找到 X 条高度相关经历”字样。
       4. 结果请翻译为中文。
     `;
@@ -99,12 +111,7 @@ export const searchAndMatchJobs = async (profile: UserProfile, analysis: Analysi
     const rawText = response.text || '[]';
     let results: JobMatch[] = JSON.parse(rawText);
     
-    // 提取 Grounding 元数据作为备选参考 URL
-    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-    if (groundingChunks && results.length > 0) {
-      console.log("[GeminiService] 已提取到搜索参考来源:", groundingChunks.length, "条");
-    }
-
+    // 强制截取 10 条，确保 UI 体验一致
     return results.filter(job => job.url).slice(0, 10);
   } catch (error: any) {
     console.error("[GeminiService] searchAndMatchJobs Error:", error);
