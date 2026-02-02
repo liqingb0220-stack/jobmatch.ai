@@ -20,7 +20,7 @@ export const analyzeProfile = async (profile: UserProfile): Promise<AnalysisResu
   const ai = getAI();
   
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-1.5-flash',
     contents: `你是一名资深的职业顾问。请深度分析以下求职者的简历与期望，输出结构化分析报告。
 请在 summary 中包含一个类似“(已识别 XX 条核心经历)”的说明。
 简历内容：${profile.resumeText}
