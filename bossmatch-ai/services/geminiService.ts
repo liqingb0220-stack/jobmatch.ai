@@ -1,17 +1,13 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { UserProfile, JobMatch, AnalysisResult, OptimizationDiagnosis, OptimizationStep } from "../types";
 
 const getAI = () => {
-  // ✅ 核心修复：Vite 环境必须用 import.meta.env 读取环境变量
   let apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
-  // 保留你原有的字符串清洗与预校验逻辑（无需修改）
   if (typeof apiKey === 'string') {
     apiKey = apiKey.trim();
   }
 
-  // 保留原有无效值拦截逻辑（覆盖所有空/占位符情况）
   const isInvalid = !apiKey || 
                     apiKey === "undefined" || 
                     apiKey === "null" || 
@@ -30,9 +26,9 @@ export const analyzeProfile = async (profile: UserProfile): Promise<AnalysisResu
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.0-flash',  // ✅ 修复模型名
       contents: `你是一名资深的职业顾问。请深度分析以下求职者的简历与期望，输出结构化分析报告。
-请在 summary 中包含一个类似“(已识别 XX 条核心经历)”的说明。
+请在 summary 中包含一个类似"(已识别 XX 条核心经历)"的说明。
 简历内容：${profile.resumeText}
 职业期望：${profile.expectations}`,
       config: {
@@ -57,7 +53,7 @@ export const analyzeProfile = async (profile: UserProfile): Promise<AnalysisResu
 };
 
 export const searchAndMatchJobs = async (profile: UserProfile, analysis: AnalysisResult, excludeTitles: string[] = []): Promise<JobMatch[]> => {
-  console.log("[GeminiService] 正在全网检索实时岗位（目标：10个）...");
+  console.log("[GeminiService] 正在全网检索实时岗位（目标：5个）...");
   try {
     const ai = getAI();
     const excludePart = excludeTitles.length > 0 ? `请避开以下已检索过的职位：${excludeTitles.join('、')}` : "";
@@ -69,14 +65,14 @@ export const searchAndMatchJobs = async (profile: UserProfile, analysis: Analysi
       ${excludePart}
       
       要求：
-      1. 必须一次性返回正好 10 个最匹配的岗位。
+      1. 必须一次性返回正好 5 个最匹配的岗位。
       2. 每个岗位必须包含真实链接（招聘平台、公司官网等）。
-      3. 在 reason 字段中，必须包含“已找到 X 条高度相关经历”字样。
+      3. 在 reason 字段中，必须包含"已找到 X 条高度相关经历"字样。
       4. 结果请翻译为中文。
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.0-flash',  // ✅ 修复模型名，从 pro 降为 flash 减少 token 消耗
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
@@ -106,8 +102,8 @@ export const searchAndMatchJobs = async (profile: UserProfile, analysis: Analysi
     const rawText = response.text || '[]';
     let results: JobMatch[] = JSON.parse(rawText);
     
-    // 强制截取 10 条，确保 UI 体验一致
-    return results.filter(job => job.url).slice(0, 10);
+    // 截取 5 条
+    return results.filter(job => job.url).slice(0, 5);
   } catch (error: any) {
     console.error("[GeminiService] searchAndMatchJobs Error:", error);
     if (error.message?.includes("JSON")) throw new Error("AI_RESPONSE_PARSE_FAILED");
@@ -119,7 +115,7 @@ export const getOptimizationDiagnosis = async (resumeText: string, job: JobMatch
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.0-flash',  // ✅ 修复模型名
       contents: `对比岗位 "${job.title} @ ${job.company}" 与简历。
 JD：${job.jdSummary}
 简历：${resumeText.substring(0, 3000)}`,
@@ -147,7 +143,7 @@ export const getDeepOptimizationSteps = async (resumeText: string, job: JobMatch
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: ''gemini-2.0-flash'',
+      model: 'gemini-2.0-flash',  // ✅ 修复模型名
       contents: `简历深度优化建议。职位："${job.title} @ ${job.company}"。
 简历原文：${resumeText.substring(0, 3000)}`,
       config: {
