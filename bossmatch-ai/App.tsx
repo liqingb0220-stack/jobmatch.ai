@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { UserProfile, JobMatch, AnalysisResult, User, HistoryItem } from './types';
@@ -13,6 +12,8 @@ import { HistoryModal } from './components/HistoryModal';
 import * as pdfjsLib from 'pdfjs-dist';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://esm.sh/pdfjs-dist@4.10.38/build/pdf.worker.mjs';
+
+const MAX_RESUME_LENGTH = 2000; // ✅ 简历文字上限
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -43,32 +44,25 @@ const App: React.FC = () => {
     if (savedHistory) setHistory(JSON.parse(savedHistory));
   }, []);
 
-  // 映射产品化的错误提示
   const getFriendlyErrorMessage = (err: any): string => {
     const msg = err?.message || String(err);
     console.error("[App] 捕获到原始错误:", msg);
     
-    // 精准匹配 API Key 错误
     if (msg.includes("API_KEY_MISSING") || msg.includes("An API Key must be set") || msg.includes("API key not found")) {
       return "AI 服务授权配置有误。建议：请确保您的 VITE_GEMINI_API_KEY 已正确配置并生效，或联系管理员检查项目环境变量。";
     }
-    // 匹配频率限制
     if (msg.includes("429") || msg.includes("quota")) {
       return "AI 引擎目前请求过于频繁。建议：请稍等 60 秒后再次尝试，或精简您的简历文本后重试。";
     }
-    // 匹配数据解析异常
     if (msg.includes("AI_RESPONSE_PARSE_FAILED") || msg.includes("JSON")) {
-      return "AI 生成的数据解析失败。建议：这通常是瞬时网络波动，请直接点击“重试”或“换一批”按钮。";
+      return "AI 生成的数据解析失败。建议：这通常是瞬时网络波动，请直接点击"重试"或"换一批"按钮。";
     }
-    // 匹配网络异常
     if (msg.toLowerCase().includes("fetch") || msg.toLowerCase().includes("network")) {
       return "网络连接不稳定，AI 数据传输中断。建议：检查您的网络连接，关闭或切换加速器节点后重试。";
     }
-    // 匹配安全策略限制
     if (msg.includes("blocked") || msg.includes("safety")) {
       return "您的内容未能通过 AI 安全审核。建议：请尝试修改简历描述或职业期待，避免使用敏感词汇或特殊格式。";
     }
-    // 通用回退提示
     return "AI 系统由于过载或超时暂时停止了响应。建议：尝试精简简历文本（建议 2000 字以内），然后再次点击重试。";
   };
 
@@ -124,8 +118,17 @@ const App: React.FC = () => {
         const textContent = await page.getTextContent();
         fullText += textContent.items.map((item: any) => item.str).join(' ') + '\n';
       }
-      setProfile(prev => ({ ...prev, resumeText: fullText }));
+
+      // ✅ 核心修复：截断超长文本，防止 token 超限
+      const trimmedText = fullText.trim().substring(0, MAX_RESUME_LENGTH);
+      setProfile(prev => ({ ...prev, resumeText: trimmedText }));
       setFileName(file.name);
+
+      // ✅ 提示用户简历被截断
+      if (fullText.trim().length > MAX_RESUME_LENGTH) {
+        setError(`简历内容较多，已自动截取前 ${MAX_RESUME_LENGTH} 字以确保 AI 正常运行。`);
+        setTimeout(() => setError(null), 4000);
+      }
     } catch (err) {
       setError('PDF 解析失败，请检查文件是否损坏或已加密。');
     } finally {
@@ -149,10 +152,10 @@ const App: React.FC = () => {
     try {
       const analysisData = await analyzeProfile(profile);
       setAnalysis(analysisData);
-      setMatchSteps(prev => prev.map(s => s.id === '1' ? {...s, status: 'completed', subText: `✔ 已识别核心竞争力`} : s.id === '2' ? {...s, status: 'loading', subText: '正在检索 10 个最匹配的实时岗位...'} : s));
+      setMatchSteps(prev => prev.map(s => s.id === '1' ? {...s, status: 'completed', subText: `✔ 已识别核心竞争力`} : s.id === '2' ? {...s, status: 'loading', subText: '正在检索 5 个最匹配的实时岗位...'} : s));
       
       const matchedJobs = await searchAndMatchJobs(profile, analysisData);
-      setMatchSteps(prev => prev.map(s => s.id === '2' ? {...s, status: 'completed', subText: `✔ 已定位 10 个优质在招职位`} : s.id === '3' ? {...s, status: 'loading', subText: '🔍 正在进行精细化对标分析...'} : s));
+      setMatchSteps(prev => prev.map(s => s.id === '2' ? {...s, status: 'completed', subText: `✔ 已定位 5 个优质在招职位`} : s.id === '3' ? {...s, status: 'loading', subText: '🔍 正在进行精细化对标分析...'} : s));
       
       await new Promise(r => setTimeout(r, 600));
       setJobs(matchedJobs);
@@ -283,7 +286,8 @@ const App: React.FC = () => {
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
                   重新配置档案
                 </button>
-                <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-800 tracking-tight">为您匹配的 10 个优质岗位</h2>
+                {/* ✅ 更新为5个 */}
+                <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-800 tracking-tight">为您匹配的 5 个优质岗位</h2>
                 <p className="text-slate-500 mt-2 font-medium">AI 已基于全网公开招聘信息定位以下机会</p>
               </div>
               <button onClick={handleRefresh} disabled={refreshing} className="glass-panel text-blue-600 border border-slate-200 px-8 py-3.5 rounded-full text-sm font-bold hover:bg-white transition-all flex items-center shadow-sm disabled:opacity-50">
