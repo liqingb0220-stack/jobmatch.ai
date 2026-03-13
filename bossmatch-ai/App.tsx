@@ -55,7 +55,7 @@ const App: React.FC = () => {
       return "AI 引擎目前请求过于频繁。建议：请稍等 60 秒后再次尝试，或精简您的简历文本后重试。";
     }
     if (msg.includes("AI_RESPONSE_PARSE_FAILED") || msg.includes("JSON")) {
-      return "AI 生成的数据解析失败。建议：这通常是瞬时网络波动，请直接点击重试或换一批按钮。";
+      return 'AI 生成的数据解析失败。建议：这通常是瞬时网络波动，请直接点击"重试"或"换一批"按钮。';
     }
     if (msg.toLowerCase().includes("fetch") || msg.toLowerCase().includes("network")) {
       return "网络连接不稳定，AI 数据传输中断。建议：检查您的网络连接，关闭或切换加速器节点后重试。";
