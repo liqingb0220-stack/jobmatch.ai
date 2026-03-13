@@ -26,7 +26,7 @@ export const analyzeProfile = async (profile: UserProfile): Promise<AnalysisResu
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',  // ✅ 修复模型名
+      model: 'gemini-3-flash-preview',  // ✅ 修复模型名
       contents: `你是一名资深的职业顾问。请深度分析以下求职者的简历与期望，输出结构化分析报告。
 请在 summary 中包含一个类似"(已识别 XX 条核心经历)"的说明。
 简历内容：${profile.resumeText}
@@ -72,7 +72,7 @@ export const searchAndMatchJobs = async (profile: UserProfile, analysis: Analysi
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',  // ✅ 修复模型名，从 pro 降为 flash 减少 token 消耗
+      model: 'gemini-3-flash-preview',  // ✅ 修复模型名，从 pro 降为 flash 减少 token 消耗
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
@@ -115,7 +115,7 @@ export const getOptimizationDiagnosis = async (resumeText: string, job: JobMatch
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',  // ✅ 修复模型名
+      model: 'gemini-3-flash-preview',  // ✅ 修复模型名
       contents: `对比岗位 "${job.title} @ ${job.company}" 与简历。
 JD：${job.jdSummary}
 简历：${resumeText.substring(0, 3000)}`,
@@ -143,7 +143,7 @@ export const getDeepOptimizationSteps = async (resumeText: string, job: JobMatch
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',  // ✅ 修复模型名
+      model: 'gemini-3-flash-preview',  // ✅ 修复模型名
       contents: `简历深度优化建议。职位："${job.title} @ ${job.company}"。
 简历原文：${resumeText.substring(0, 3000)}`,
       config: {
