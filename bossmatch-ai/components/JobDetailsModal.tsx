@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { JobMatch } from '../types';
 
@@ -11,7 +10,10 @@ interface JobDetailsModalProps {
 export const JobDetailsModal: React.FC<JobDetailsModalProps> = ({ job, onClose, onOptimize }) => {
   if (!job) return null;
 
-  // Helper to get home page URL
+  const handleExternalLink = () => {
+    console.log('external_link_click', { target: job.company || '招聘平台', url: job.url });
+  };
+
   const getHomePageUrl = (url: string) => {
     try {
       const urlObj = new URL(url);
@@ -81,6 +83,7 @@ export const JobDetailsModal: React.FC<JobDetailsModalProps> = ({ job, onClose, 
             href={homePageUrl} 
             target="_blank" 
             rel="noopener noreferrer"
+            onClick={handleExternalLink}
             className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg flex items-center justify-center space-x-2"
           >
             <span>前往平台首页搜索</span>
